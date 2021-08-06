@@ -16,7 +16,7 @@ shHandle low_beam_off_timer; // таймер отключения ближнег
 
 bool engine_run_flag = false;            // флаг запуска двигателя
 byte auto_light_mode = AUTOLIGHT_MODE_0; // текущий режим автосвета
-bool light_sensor_threshold = false;     // состояние порога переключения света по датчику
+uint16_t light_sensor_threshold = 200;   // текущие показания датчика света
 
 // кнопки управления автосветом
 shButton btnAlm1(BTN_ALM1_PIN);
@@ -54,9 +54,17 @@ void checkInputData()
       tasks.startTask(sleep_on_timer);
     }
   }
-  else if (!engine_run_flag && digitalRead(ENGINE_RUN_PIN))
+  else
   {
-    engine_run_flag = true;
+    if (!tasks.getTaskState(sleep_on_timer))
+    {
+      tasks.stopTask(sleep_on_timer);
+    }
+    if (!engine_run_flag && digitalRead(ENGINE_RUN_PIN))
+    {
+      engine_run_flag = true;
+      setLightRelay(auto_light_mode);
+    }
   }
 }
 
@@ -74,14 +82,12 @@ void powerOffTimer()
 
 void lightSensorRead()
 {
-  static word b;
-  b = (b * 2 + analogRead(LIGHT_SENSOR_PIN)) / 3;
-  light_sensor_threshold = (b < eeprom_read_word(&e_al_threshold));
+  light_sensor_threshold = (light_sensor_threshold * 2 + analogRead(LIGHT_SENSOR_PIN)) / 3;
 
   // тут же управление светом при работе от датчика света
-  if (auto_light_mode = AUTOLIGHT_MODE_3 && engine_run_flag)
+  if (auto_light_mode == AUTOLIGHT_MODE_3 && engine_run_flag)
   {
-    if (light_sensor_threshold)
+    if (light_sensor_threshold < eeprom_read_word(&e_al_threshold))
     { // если порог снизился до уровня включения БС, то включить БС и остановить таймер отключения БС
       setLightRelay(2);
       tasks.stopTask(low_beam_off_timer);
@@ -100,8 +106,8 @@ void lightSensorRead()
 
 void setLightRelay(byte rel = 0)
 {
-  digitalWrite(RELAY_1_PIN, rel && engine_run_flag);
-  digitalWrite(RELAY_2_PIN, rel && engine_run_flag);
+  digitalWrite(RELAY_1_PIN, (rel == 1) && engine_run_flag);
+  digitalWrite(RELAY_2_PIN, (rel == 2) && engine_run_flag);
 }
 
 void setAutoLightMode(byte mode_btn)
@@ -145,14 +151,14 @@ void setLeds()
 {
   if (tasks.getTaskState(sleep_on_timer))
   { // если запущен таймер ухода в сон, индикаторы выключить
-    for (byte i = 0; i < 2; i++)
+    for (byte i = 0; i < 3; i++)
     {
       leds[i] = CRGB::Black;
     }
   }
   else
   { // иначе определить цвета: красный - режим выключен, зеленый - режим включен, свет не горит (двигатель не заведен), голубой - режим включен, горит БС, желтый - горят противотуманки
-    for (byte i = 0; i < 2; i++)
+    for (byte i = 0; i < 3; i++)
     {
       leds[i] = CRGB::Red;
     }
@@ -173,22 +179,31 @@ void setLeds()
       {
         if (digitalRead(RELAY_1_PIN))
         {
-          CRGB::Yellow;
+          leds[2] = CRGB::Yellow;
         }
         else if (digitalRead(RELAY_2_PIN))
         {
-          CRGB::Blue;
+          leds[2] = CRGB::Blue;
         }
       }
       break;
     }
+  }
+  // здесь управление яркостью индикаторов
+  if (light_sensor_threshold <= eeprom_read_word(&e_al_threshold))
+  {
+    FastLED.setBrightness(100);
+  }
+  else if (light_sensor_threshold > eeprom_read_word(&e_al_threshold) + 50)
+  {
+    FastLED.setBrightness(255);
   }
   FastLED.show();
 }
 
 void lowBeamOff()
 {
-  if (!light_sensor_threshold)
+  if (auto_light_mode == AUTOLIGHT_MODE_3 && !light_sensor_threshold < eeprom_read_word(&e_al_threshold))
   {
     setLightRelay(1);
   }
@@ -199,6 +214,8 @@ void lowBeamOff()
 
 void setup()
 {
+  pinMode(LED_BUILTIN, OUTPUT);
+
   FastLED.addLeds<WS2812B, LEDS_DATA_PIN, GRB>(leds, 3);
 
   pinMode(INGNITION_PIN, INPUT);
@@ -211,10 +228,11 @@ void setup()
   if (auto_light_mode > AUTOLIGHT_MODE_3)
   {
     auto_light_mode = AUTOLIGHT_MODE_0;
+    eeprom_update_byte(&e_al_mode, auto_light_mode);
   }
   if (eeprom_read_word(&e_al_threshold) > 1023)
   {
-    eeprom_update_word(&e_al_threshold, 200);
+    eeprom_update_word(&e_al_threshold, 700);
   }
 
   // настройка кнопок
@@ -237,10 +255,10 @@ void setup()
   data_guard = tasks.addTask(200, checkInputData);
   leds_guard = tasks.addTask(100, setLeds);
   light_sensor_guard = tasks.addTask(50, lightSensorRead);
-  low_beam_off_timer = tasks.addTask(30000, lowBeamOff, false);
+  low_beam_off_timer = tasks.addTask(30000ul, lowBeamOff, false);
 }
 
 void loop()
 {
-  void allTick();
+  allTick();
 }
