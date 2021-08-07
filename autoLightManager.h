@@ -40,6 +40,9 @@ void powerOffTimer();
 // - mode_btn - режим, выбираемый нажатой кнопкой
 void setAutoLightMode(byte mode_btn);
 
+// старт света при включении любого режима при уже запущенном двигателе
+void runLightMode();
+
 // обработка данных с датчика света
 void lightSensorRead();
 

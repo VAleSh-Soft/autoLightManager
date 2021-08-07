@@ -3,6 +3,9 @@
 #include "autoLightManager.h"
 #include <avr/sleep.h>
 #include <FastLED.h>
+#include <TM1637Display.h>
+
+TM1637Display tm(11, 10); // CLK, DAT
 
 CRGB leds[3]; // массив адресных светодиодов-индикаторов режима автосвета
 
@@ -63,7 +66,7 @@ void checkInputData()
     if (!engine_run_flag && digitalRead(ENGINE_RUN_PIN))
     {
       engine_run_flag = true;
-      setLightRelay(auto_light_mode);
+      runLightMode();
     }
   }
 }
@@ -100,8 +103,31 @@ void lightSensorRead()
       }
     }
   }
-
+  // отладочный вывод показаний датчика
+  tm.showNumberDec(light_sensor_threshold);
   // и здесь же управление яркостью дисплея и индикаторов
+  uint16_t t = eeprom_read_word(&e_al_threshold);
+  if (light_sensor_threshold <= t)
+  {
+    FastLED.setBrightness(50);
+    tm.setBrightness(2);
+  }
+  else if (light_sensor_threshold > t + 50)
+  {
+    FastLED.setBrightness(255);
+    tm.setBrightness(7);
+  }
+  FastLED.show();
+}
+
+void runLightMode()
+{
+  byte x = (auto_light_mode != AUTOLIGHT_MODE_3) ? auto_light_mode : 1;
+  if (light_sensor_threshold <= eeprom_read_word(&e_al_threshold))
+  {
+    x = 2;
+  }
+  setLightRelay(x);
 }
 
 void setLightRelay(byte rel = 0)
@@ -116,11 +142,8 @@ void setAutoLightMode(byte mode_btn)
   auto_light_mode = (mode_btn == auto_light_mode) ? AUTOLIGHT_MODE_0 : mode_btn;
   // сохранить новый режим
   eeprom_update_byte(&e_al_mode, auto_light_mode);
-  // переключить свет; в третьем режиме за переключение отвечает таймер
-  if (auto_light_mode != AUTOLIGHT_MODE_3)
-  {
-    setLightRelay(auto_light_mode);
-  }
+  // переключить свет; 
+  runLightMode();
 }
 
 void checkBtnAlm()
@@ -189,15 +212,6 @@ void setLeds()
       break;
     }
   }
-  // здесь управление яркостью индикаторов
-  if (light_sensor_threshold <= eeprom_read_word(&e_al_threshold))
-  {
-    FastLED.setBrightness(100);
-  }
-  else if (light_sensor_threshold > eeprom_read_word(&e_al_threshold) + 50)
-  {
-    FastLED.setBrightness(255);
-  }
   FastLED.show();
 }
 
@@ -255,7 +269,7 @@ void setup()
   data_guard = tasks.addTask(200, checkInputData);
   leds_guard = tasks.addTask(100, setLeds);
   light_sensor_guard = tasks.addTask(50, lightSensorRead);
-  low_beam_off_timer = tasks.addTask(30000ul, lowBeamOff, false);
+  low_beam_off_timer = tasks.addTask(30000, lowBeamOff, false);
 }
 
 void loop()
