@@ -87,6 +87,9 @@ bool checkBtnUp(uint16_t &_data, int min_data, int max_data);
 #define DISPLAY_MODE_SET_TIMEOUT 3          // режим настройки времени ухода в спящий режим
 #define DISPLAY_MODE_SET_LIGHT_THRESHOLD 10 // режим настройки порога срабатывания датчика света
 
+// вывод на экран данных в режиме настройки времени
+void showTimeSettingData(byte hour, byte minute);
+
 // ==== часы =========================================
 
 // таймер блинка
@@ -99,3 +102,8 @@ void restartBlinkTimer();
 void showTime(DateTime dt, bool force = false);
 void showTime(byte hour, byte minute, bool force = false);
 
+// сохранение времени после настройки
+void saveTime(byte hour, byte minute);
+
+// режим настройки времени
+void showTimeSetting();

@@ -231,7 +231,7 @@ void setLeds()
       switch (auto_light_mode)
       {
       case AUTOLIGHT_MODE_1:
-        leds[0] = (engine_run_flag) ? CRGB::Yellow : CRGB::Green;
+        leds[0] = (engine_run_flag) ? CRGB::Orange : CRGB::Green;
         break;
       case AUTOLIGHT_MODE_2:
         leds[1] = (engine_run_flag) ? CRGB::Blue : CRGB::Green;
@@ -245,7 +245,7 @@ void setLeds()
         {
           if (digitalRead(RELAY_1_PIN))
           {
-            leds[2] = CRGB::Yellow;
+            leds[2] = CRGB::Orange;
           }
           else if (digitalRead(RELAY_2_PIN))
           {
@@ -336,7 +336,7 @@ void checkClockBtn()
   switch (btnClockSet.getButtonState())
   {
   case BTN_LONGCLICK:
-    /* code */
+    displayMode = DISPLAY_MODE_SET_HOUR;
     break;
   }
   switch (btnClockUp.getButtonState())
@@ -399,6 +399,88 @@ void showTime(byte hour, byte minute, bool force = false)
   }
 }
 
+void saveTime(byte hour, byte minute)
+{
+  clock.setHour(hour);
+  clock.setMinute(minute);
+  clock.setSecond(0);
+}
+
+void showTimeSetting()
+{
+  tasks.startTask(return_to_default_mode);
+  restartBlinkTimer();
+  bool flag = false;
+  uint16_t curHour = 0;
+  uint16_t curMinute = 0;
+  while (displayMode > DISPLAY_MODE_SHOW_TIME && displayMode < DISPLAY_MODE_SET_TIMEOUT)
+  {
+    tasks.tick();
+    checkBtnAlm();
+    if (!flag)
+    {
+      DateTime dt = RTC.now();
+      curHour = dt.hour();
+      curMinute = dt.minute();
+    }
+    // опрос конопок
+    switch (btnClockSet.getButtonState()) // кнопка Set
+    {
+    case BTN_ONECLICK:
+      displayMode++;
+      if (displayMode == DISPLAY_MODE_SET_TIMEOUT)
+        displayMode = DISPLAY_MODE_SHOW_TIME;
+      break;
+    case BTN_LONGCLICK:
+      displayMode = DISPLAY_MODE_SHOW_TIME;
+      break;
+    }
+    switch (displayMode) // кнопка Up
+    {
+    case DISPLAY_MODE_SET_HOUR:
+      if (checkBtnUp(curHour, 0, 23))
+      {
+        flag = true;
+      }
+      break;
+    case DISPLAY_MODE_SET_MINUTE:
+      if (checkBtnUp(curMinute, 0, 59))
+      {
+        flag = true;
+      }
+      break;
+    }
+    // вывод данных на индикатор
+    showTimeSettingData(curHour, curMinute);
+  }
+  if (flag)
+  {
+    saveTime(curHour, curMinute);
+  }
+  tasks.stopTask(return_to_default_mode);
+  if (displayMode == DISPLAY_MODE_SHOW_TIME)
+  {
+    restartBlinkTimer();
+  }
+}
+
+void showTimeSettingData(byte hour, byte minute)
+{
+  uint8_t data[] = {0xff, 0xff, 0xff, 0xff};
+  data[0] = tm.encodeDigit(hour / 10);
+  data[1] = tm.encodeDigit(hour % 10);
+  data[2] = tm.encodeDigit(minute / 10);
+  data[3] = tm.encodeDigit(minute % 10);
+  // если наступило время блинка и кнопка Up не нажата, то стереть соответствующие разряды; при нажатой кнопке Up во время изменения данных ничего не мигает
+  if (!blink_flag && !btnClockUp.isButtonClosed())
+  {
+    byte i = (displayMode == DISPLAY_MODE_SET_HOUR) ? 0 : 2;
+    data[i] = 0x00;
+    data[i + 1] = 0x00;
+  }
+  tm.setSegments(data);
+}
+
 // ===================================================
 
 void setup()
@@ -457,7 +539,10 @@ void loop()
   case DISPLAY_MODE_SHOW_TIME:
     showTime(RTC.now());
     break;
-
+  case DISPLAY_MODE_SET_HOUR:
+  case DISPLAY_MODE_SET_MINUTE:
+    showTimeSetting();
+    break;
   case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
     showLightThresholdSetting();
     break;
