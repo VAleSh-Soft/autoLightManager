@@ -33,6 +33,8 @@ public:
     shButton::setTimeout(1000);
     shButton::setLongClickMode(LCM_ONLYONCE);
     shButton::setVirtualClickOn(true);
+    shButton::setDblClickTimeout(100); // т.к. двойной клик нигде не используется, уменьшаем его интервал, чтобы ускорить выдачу события BTN_ONECLICK
+    shButton::setDebounce(60);
   }
 
   byte getButtonState()
@@ -153,8 +155,6 @@ void lightSensorRead()
       }
     }
   }
-  // // отладочный вывод показаний датчика
-  // tm.showNumberDec(light_sensor_threshold);
   // и здесь же управление яркостью дисплея и индикаторов
   uint16_t t = eeprom_read_word(&e_al_threshold);
   if (light_sensor_threshold <= t)
@@ -167,13 +167,12 @@ void lightSensorRead()
     FastLED.setBrightness(255);
     tm.setBrightness(7);
   }
-  FastLED.show();
 }
 
 void runLightMode()
 {
   byte x = (auto_light_mode != AUTOLIGHT_MODE_3) ? auto_light_mode : 1;
-  if (light_sensor_threshold <= eeprom_read_word(&e_al_threshold))
+  if (auto_light_mode == AUTOLIGHT_MODE_3 && light_sensor_threshold <= eeprom_read_word(&e_al_threshold))
   {
     x = 2;
   }
@@ -182,8 +181,8 @@ void runLightMode()
 
 void setLightRelay(byte rel = 0)
 {
-  digitalWrite(RELAY_1_PIN, (rel == 1) && engine_run_flag);
-  digitalWrite(RELAY_2_PIN, (rel == 2) && engine_run_flag);
+  digitalWrite(RELAY_1_PIN, (auto_light_mode && (rel == 1) && engine_run_flag));
+  digitalWrite(RELAY_2_PIN, (auto_light_mode && (rel == 2) && engine_run_flag));
 }
 
 void setAutoLightMode(byte mode_btn)
@@ -318,7 +317,10 @@ void checkBtnAlm()
     break;
   case BTN_LONGCLICK:
     // здесь запуск настройки порога срабатывания датчика света
-    displayMode = DISPLAY_MODE_SET_LIGHT_THRESHOLD;
+    if (digitalRead(INGNITION_PIN))
+    {
+      displayMode = DISPLAY_MODE_SET_LIGHT_THRESHOLD;
+    }
     break;
   }
 }
@@ -391,8 +393,8 @@ void setup()
   }
   sleep_on_timer = tasks.addTask(t * 60000ul, powerOffTimer, false);
   data_guard = tasks.addTask(200, checkInputData);
+  light_sensor_guard = tasks.addTask(100, lightSensorRead);
   leds_guard = tasks.addTask(100, setLeds);
-  light_sensor_guard = tasks.addTask(50, lightSensorRead);
   low_beam_off_timer = tasks.addTask(30000, lowBeamOff, false);
   return_to_default_mode = tasks.addTask(10000, returnToDefModeDisplay, false);
 
