@@ -88,7 +88,14 @@ bool checkBtnUp(uint16_t &_data, int min_data, int max_data);
 #define DISPLAY_MODE_SET_LIGHT_THRESHOLD 10 // режим настройки порога срабатывания датчика света
 
 // вывод на экран данных в режиме настройки времени
+//  hour - значение часов
+//  minute - значение минут
 void showTimeSettingData(byte hour, byte minute);
+
+// вывод на экран данных в режиме настройки времени
+//  data - данные для вывода
+//  mode - режим настройки; 0 - настройка времени перехода в спящий режим, 1 - настройка порога срабатывания датчика света
+void showSettingData(byte data, byte mode);
 
 // ==== часы =========================================
 
@@ -107,3 +114,6 @@ void saveTime(byte hour, byte minute);
 
 // режим настройки времени
 void showTimeSetting();
+
+// режим настройки времени перехода в спящий режим
+void showTimeoutSetting();

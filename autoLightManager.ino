@@ -271,6 +271,7 @@ void lowBeamOff()
 void showLightThresholdSetting()
 {
   tm.clear();
+  restartBlinkTimer();
   uint16_t data = eeprom_read_word(&e_al_threshold) / 10;
   tasks.startTask(return_to_default_mode);
   bool flag = false;
@@ -289,18 +290,18 @@ void showLightThresholdSetting()
     {
     case BTN_ONECLICK: // при одиночном клике на кнопку вывести текущие данные с датчика света
       data = light_sensor_threshold / 10;
+      flag = true;
       break;
     case BTN_LONGCLICK: // при длинном клике на кнопку выйти из настроек
       displayMode = DISPLAY_MODE_SHOW_TIME;
       break;
     }
-    tm.showNumberDec(data);
+    showSettingData(data, 1);
   }
   if (flag)
   {
     eeprom_update_word(&e_al_threshold, data * 10);
   }
-  tm.clear();
   tasks.stopTask(return_to_default_mode);
 }
 
@@ -428,8 +429,6 @@ void showTimeSetting()
     {
     case BTN_ONECLICK:
       displayMode++;
-      if (displayMode == DISPLAY_MODE_SET_TIMEOUT)
-        displayMode = DISPLAY_MODE_SHOW_TIME;
       break;
     case BTN_LONGCLICK:
       displayMode = DISPLAY_MODE_SHOW_TIME;
@@ -464,6 +463,41 @@ void showTimeSetting()
   }
 }
 
+void showTimeoutSetting()
+{
+  tm.clear();
+  restartBlinkTimer();
+  uint16_t data = eeprom_read_byte(&e_sleep_on);
+  tasks.startTask(return_to_default_mode);
+  bool flag = false;
+  while (displayMode != DISPLAY_MODE_SHOW_TIME)
+  {
+    tasks.tick();
+    checkBtnAlm(); 
+
+    // обработка кнопки Up
+    if (checkBtnUp(data, 1, 60))
+    {
+      flag = true;
+    }
+    // обработка кнопки Set
+    switch (btnClockSet.getButtonState())
+    {
+    case BTN_ONECLICK: 
+    case BTN_LONGCLICK: // при длинном клике на кнопку выйти из настроек
+      displayMode = DISPLAY_MODE_SHOW_TIME;
+      break;
+    }
+    showSettingData(data, 0);
+  }
+  if (flag)
+  {
+    eeprom_update_byte(&e_sleep_on, data);
+    tasks.setTaskInterval(sleep_on_timer, data * 60000ul, false);
+  }
+  tasks.stopTask(return_to_default_mode);
+}
+
 void showTimeSettingData(byte hour, byte minute)
 {
   uint8_t data[] = {0xff, 0xff, 0xff, 0xff};
@@ -479,6 +513,29 @@ void showTimeSettingData(byte hour, byte minute)
     data[i + 1] = 0x00;
   }
   tm.setSegments(data);
+}
+
+void showSettingData(byte data, byte mode)
+{
+  uint8_t _data[] = {0x00, 0x00, 0xff, 0xff};
+  switch (mode)
+  {
+  case 0:
+    _data[0] = 0x5c;
+    break;
+  case 1:
+    _data[0] = 0x38;
+    break;
+  }
+  _data[2] = tm.encodeDigit(data / 10);
+  _data[3] = tm.encodeDigit(data % 10);
+  // если наступило время блинка и кнопки Up и Set не нажата, то стереть третий и четвертый разряды; при нажатых кнопках во время изменения данных ничего не мигает
+  if (!blink_flag && !btnClockUp.isButtonClosed() && !btnClockSet.isButtonClosed())
+  {
+    _data[2] = 0x00;
+    _data[3] = 0x00;
+  }
+  tm.setSegments(_data);  
 }
 
 // ===================================================
@@ -512,6 +569,7 @@ void setup()
   if (t > 60)
   {
     t = 10;
+    eeprom_update_byte(&e_sleep_on, t);
   }
   sleep_on_timer = tasks.addTask(t * 60000ul, powerOffTimer, false);
   data_guard = tasks.addTask(200, checkInputData);
@@ -542,6 +600,9 @@ void loop()
   case DISPLAY_MODE_SET_HOUR:
   case DISPLAY_MODE_SET_MINUTE:
     showTimeSetting();
+    break;
+  case DISPLAY_MODE_SET_TIMEOUT:
+    showTimeoutSetting();
     break;
   case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
     showLightThresholdSetting();
