@@ -1,9 +1,10 @@
 #pragma once
 #include <Arduino.h>
+#include <DS3231.h>
 
 // ==== пины =========================================
 
-#define INGNITION_PIN 2     // пин, на который приходит сигнал с линии зажигания
+#define IGNITION_PIN 2     // пин, на который приходит сигнал с линии зажигания
 #define ENGINE_RUN_PIN 4    // пин, на который приходит сигнал с вывода D генератора или HIGH при запущенном двигателе
 #define BTN_ALM1_PIN 7      // пин кнопки включения первого режима автосвета
 #define BTN_ALM2_PIN 8      // пин кнопки включения второго режима автосвета
@@ -87,3 +88,14 @@ bool checkBtnUp(uint16_t &_data, int min_data, int max_data);
 #define DISPLAY_MODE_SET_LIGHT_THRESHOLD 10 // режим настройки порога срабатывания датчика света
 
 // ==== часы =========================================
+
+// таймер блинка
+void blinkTimer();
+
+// перезапуск таймера блинка
+void restartBlinkTimer();
+
+// вывод времени на индикатор
+void showTime(DateTime dt, bool force = false);
+void showTime(byte hour, byte minute, bool force = false);
+

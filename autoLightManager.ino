@@ -4,12 +4,16 @@
 #include <avr/sleep.h>
 #include <FastLED.h>
 #include <TM1637Display.h>
+#include <Wire.h>   // Подключаем библиотеку для работы с I2C устройствами
+#include <DS3231.h> // Подключаем библиотеку для работы с RTC DS3231
 
 TM1637Display tm(11, 10); // CLK, DAT
+DS3231 clock;             // SDA - A4, SCL - A5
+RTClib RTC;
 
 CRGB leds[3]; // массив адресных светодиодов-индикаторов режима автосвета
 
-shTaskManager tasks(6); // создаем список задач
+shTaskManager tasks(7); // создаем список задач
 
 shHandle sleep_on_timer;         // таймер ухода в сон через 10 минут после отключения зажигания
 shHandle data_guard;             // отслеживание изменения уровня на входных пинах
@@ -17,11 +21,13 @@ shHandle leds_guard;             // управление светодиодам�
 shHandle light_sensor_guard;     // отслеживание показаний датчика света
 shHandle low_beam_off_timer;     // таймер отключения ближнего света при превышении порога датчика света
 shHandle return_to_default_mode; // таймер автовозврата в режим показа времени из любого режима настройки
+shHandle blink_timer;            // таймер блинка
 
 bool engine_run_flag = false;              // флаг запуска двигателя
 byte auto_light_mode = AUTOLIGHT_MODE_0;   // текущий режим автосвета
 uint16_t light_sensor_threshold = 200;     // текущие показания датчика света
 byte displayMode = DISPLAY_MODE_SHOW_TIME; // текущий режим работы дисплея
+bool blink_flag = true;                    // флаг блинка
 
 // ==== класс кнопок с предварительной настройкой ====
 
@@ -96,7 +102,7 @@ void checkIgnition()
 
 void checkInputData()
 {
-  if (!digitalRead(INGNITION_PIN))
+  if (!digitalRead(IGNITION_PIN))
   {
     if (!tasks.getTaskState(sleep_on_timer))
     {
@@ -188,7 +194,7 @@ void setLightRelay(byte rel = 0)
 void setAutoLightMode(byte mode_btn)
 {
   // режимы менять только при включенном зажигании и не в режиме настройки порога срабатывания датчика света
-  if (digitalRead(INGNITION_PIN) && displayMode != DISPLAY_MODE_SET_LIGHT_THRESHOLD)
+  if (digitalRead(IGNITION_PIN) && displayMode != DISPLAY_MODE_SET_LIGHT_THRESHOLD)
   { // если текущий режим равен нажатой кнопке, то установить нулевой режим (включить ручной), иначе установить режим, равный нажатой кнопке
     auto_light_mode = (mode_btn == auto_light_mode) ? AUTOLIGHT_MODE_0 : mode_btn;
     // сохранить новый режим
@@ -200,7 +206,7 @@ void setAutoLightMode(byte mode_btn)
 
 void setLeds()
 {
-  if (!digitalRead(INGNITION_PIN))
+  if (!digitalRead(IGNITION_PIN))
   { // если отключено зажигание, индикаторы выключить
     for (byte i = 0; i < 3; i++)
     {
@@ -317,7 +323,7 @@ void checkBtnAlm()
     break;
   case BTN_LONGCLICK:
     // здесь запуск настройки порога срабатывания датчика света
-    if (digitalRead(INGNITION_PIN))
+    if (digitalRead(IGNITION_PIN))
     {
       displayMode = DISPLAY_MODE_SET_LIGHT_THRESHOLD;
     }
@@ -361,11 +367,45 @@ bool checkBtnUp(uint16_t &_data, int min_data, int max_data)
 
 // ===================================================
 
+void blinkTimer()
+{
+  blink_flag = !blink_flag;
+}
+
+void restartBlinkTimer()
+{
+  blink_flag = true;
+  tasks.restartTask(blink_timer);
+}
+
+void showTime(DateTime dt, bool force = false)
+{
+  showTime(dt.hour(), dt.minute(), force);
+}
+
+void showTime(byte hour, byte minute, bool force = false)
+{
+  static bool p = false;
+  // вывод делается только в момент смены состояния блинка, т.е. через каждые 500 милисекунд или по флагу принудительного обновления
+  if (force || p != blink_flag)
+  {
+    if (!force)
+    {
+      p = blink_flag;
+    }
+    uint16_t h = hour * 100 + minute;
+    uint8_t s = (p) ? 0b01000000 : 0;
+    tm.showNumberDecEx(h, s, true);
+  }
+}
+
+// ===================================================
+
 void setup()
 {
   FastLED.addLeds<WS2812B, LEDS_DATA_PIN, GRB>(leds, 3);
 
-  pinMode(INGNITION_PIN, INPUT);
+  pinMode(IGNITION_PIN, INPUT);
   pinMode(ENGINE_RUN_PIN, INPUT);
   pinMode(RELAY_1_PIN, OUTPUT);
   pinMode(RELAY_2_PIN, OUTPUT);
@@ -397,10 +437,15 @@ void setup()
   leds_guard = tasks.addTask(100, setLeds);
   low_beam_off_timer = tasks.addTask(30000, lowBeamOff, false);
   return_to_default_mode = tasks.addTask(10000, returnToDefModeDisplay, false);
+  blink_timer = tasks.addTask(500, blinkTimer);
 
   // кнопки =====================================
   btnClockUp.setLongClickMode(LCM_CLICKSERIES);
   btnClockUp.setLongClickTimeout(100);
+
+  // Часы =======================================
+  Wire.begin();
+  clock.setClockMode(false); // 24-часовой режим
 }
 
 void loop()
@@ -409,12 +454,12 @@ void loop()
 
   switch (displayMode)
   {
-  case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
-    showLightThresholdSetting();
+  case DISPLAY_MODE_SHOW_TIME:
+    showTime(RTC.now());
     break;
 
-  case DISPLAY_MODE_SHOW_TIME:
-    tm.showNumberDec(2359);
+  case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
+    showLightThresholdSetting();
     break;
   }
 }
