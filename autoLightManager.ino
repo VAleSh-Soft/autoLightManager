@@ -13,7 +13,7 @@ RTClib RTC;
 
 CRGB leds[3]; // массив адресных светодиодов-индикаторов режима автосвета
 
-shTaskManager tasks(7); // создаем список задач
+shTaskManager tasks(8); // создаем список задач
 
 shHandle sleep_on_timer;         // таймер ухода в сон через 10 минут после отключения зажигания
 shHandle data_guard;             // отслеживание изменения уровня на входных пинах
@@ -22,6 +22,7 @@ shHandle light_sensor_guard;     // отслеживание показаний 
 shHandle low_beam_off_timer;     // таймер отключения ближнего света при превышении порога датчика света
 shHandle return_to_default_mode; // таймер автовозврата в режим показа времени из любого режима настройки
 shHandle blink_timer;            // таймер блинка
+shHandle temp_timer;             // таймер выввода температуры
 
 bool engine_run_flag = false;              // флаг запуска двигателя
 byte auto_light_mode = AUTOLIGHT_MODE_0;   // текущий режим автосвета
@@ -144,25 +145,26 @@ void powerOffTimer()
 void lightSensorRead()
 {
   light_sensor_threshold = (light_sensor_threshold * 2 + analogRead(LIGHT_SENSOR_PIN)) / 3;
+  uint16_t t = eeprom_read_word(&e_al_threshold);
 
   // тут же управление светом при работе от датчика света
   if (auto_light_mode == AUTOLIGHT_MODE_3 && engine_run_flag)
   {
-    if (light_sensor_threshold < eeprom_read_word(&e_al_threshold))
-    { // если порог снизился до уровня включения БС, то включить БС и остановить таймер отключения БС
+    if (light_sensor_threshold <= t)
+    { // если уровень снизился до порога включения БС, то включить БС и остановить таймер отключения БС
       setLightRelay(2);
       tasks.stopTask(low_beam_off_timer);
     }
-    else
-    { // если наоборот и таймер отключения БС еще не запущен, запустить его
+    else if (light_sensor_threshold > t + 50)
+    { // если уровень превысил порог включения БС, а таймер отключения БС еще не запущен, запустить его
       if (!tasks.getTaskState(low_beam_off_timer))
       {
         tasks.startTask(low_beam_off_timer);
       }
     }
   }
-  // и здесь же управление яркостью дисплея и индикаторов
-  uint16_t t = eeprom_read_word(&e_al_threshold);
+
+  // и здесь же управление яркостью дисплея и индикаторов - вне зависимость от режима работы
   if (light_sensor_threshold <= t)
   {
     FastLED.setBrightness(50);
@@ -288,13 +290,16 @@ void showLightThresholdSetting()
     // обработка кнопки Set
     switch (btnClockSet.getButtonState())
     {
-    case BTN_ONECLICK: // при одиночном клике на кнопку вывести текущие данные с датчика света
-      data = light_sensor_threshold / 10;
-      flag = true;
-      break;
-    case BTN_LONGCLICK: // при длинном клике на кнопку выйти из настроек
+    case BTN_ONECLICK: // при длинном или одиночном клике на кнопку выйти из настроек
+    case BTN_LONGCLICK:
       displayMode = DISPLAY_MODE_SHOW_TIME;
       break;
+    }
+    // обработка клика кнопки третьего режима - при одиночном клике вывести на дисплей текущее значение с датчика света
+    if (btnAlm3.getLastState() == BTN_ONECLICK)
+    {
+      data = light_sensor_threshold / 10;
+      flag = true;
     }
     showSettingData(data, 1);
   }
@@ -342,8 +347,19 @@ void checkClockBtn()
   }
   switch (btnClockUp.getButtonState())
   {
-  case BTN_LONGCLICK:
-    /* code */
+  case BTN_ONECLICK:
+    switch (displayMode)
+    {
+    case DISPLAY_MODE_SHOW_TIME:
+      if (!tasks.getTaskState(temp_timer))
+      {
+        displayMode = DISPLAY_MODE_SHOW_TEMP;
+      }
+      break;
+    case DISPLAY_MODE_SHOW_TEMP:
+      displayMode = DISPLAY_MODE_SHOW_TIME;
+      break;
+    }
     break;
   }
 }
@@ -473,7 +489,7 @@ void showTimeoutSetting()
   while (displayMode != DISPLAY_MODE_SHOW_TIME)
   {
     tasks.tick();
-    checkBtnAlm(); 
+    checkBtnAlm();
 
     // обработка кнопки Up
     if (checkBtnUp(data, 1, 60))
@@ -483,7 +499,7 @@ void showTimeoutSetting()
     // обработка кнопки Set
     switch (btnClockSet.getButtonState())
     {
-    case BTN_ONECLICK: 
+    case BTN_ONECLICK:
     case BTN_LONGCLICK: // при длинном клике на кнопку выйти из настроек
       displayMode = DISPLAY_MODE_SHOW_TIME;
       break;
@@ -535,7 +551,58 @@ void showSettingData(byte data, byte mode)
     _data[2] = 0x00;
     _data[3] = 0x00;
   }
-  tm.setSegments(_data);  
+  tm.setSegments(_data);
+}
+
+// ===================================================
+
+void showTemp()
+{
+  static byte count = 0;
+  if (displayMode != DISPLAY_MODE_SHOW_TEMP)
+  {
+    count = 0;
+    tasks.stopTask(temp_timer);
+  }
+  else
+  {
+    uint8_t data[] = {0x00, 0x00, 0x00, 0x63};
+    int temp = int(clock.getTemperature());
+    // если температура выходит за диапазон, сформировать строку минусов
+    if (temp > 99 || temp < -99)
+    {
+      for (byte i = 0; i < 4; i++)
+      {
+        data[i] = 0x40;
+      }
+    }
+    else
+    { // если температура отрицательная, сформировать минус впереди
+      if (temp < 0)
+      {
+        temp = -temp;
+        data[1] = 0x40;
+      }
+      if (temp > 9)
+      { // если температура ниже -9, переместить минус на крайнюю левую позицию
+        if (data[1] == 0x40)
+        {
+          data[0] = 0x40;
+        }
+        data[1] = tm.encodeDigit(temp / 10);
+      }
+      data[2] = tm.encodeDigit(temp % 10);
+    }
+    // вывести данные на индикатор
+    tm.setSegments(data);
+    if (++count >= 50)
+    {
+      count = 0;
+      tasks.stopTask(temp_timer);
+      displayMode = DISPLAY_MODE_SHOW_TIME;
+      restartBlinkTimer();
+    }
+  }
 }
 
 // ===================================================
@@ -578,6 +645,7 @@ void setup()
   low_beam_off_timer = tasks.addTask(30000, lowBeamOff, false);
   return_to_default_mode = tasks.addTask(10000, returnToDefModeDisplay, false);
   blink_timer = tasks.addTask(500, blinkTimer);
+  temp_timer = tasks.addTask(100, showTemp, false);
 
   // кнопки =====================================
   btnClockUp.setLongClickMode(LCM_CLICKSERIES);
@@ -606,6 +674,13 @@ void loop()
     break;
   case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
     showLightThresholdSetting();
+    break;
+  case DISPLAY_MODE_SHOW_TEMP:
+    if (!tasks.getTaskState(temp_timer))
+    {
+      tasks.startTask(temp_timer);
+      showTemp();
+    }
     break;
   }
 }

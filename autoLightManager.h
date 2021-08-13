@@ -4,7 +4,7 @@
 
 // ==== пины =========================================
 
-#define IGNITION_PIN 2     // пин, на который приходит сигнал с линии зажигания
+#define IGNITION_PIN 2      // пин, на который приходит сигнал с линии зажигания
 #define ENGINE_RUN_PIN 4    // пин, на который приходит сигнал с вывода D генератора или HIGH при запущенном двигателе
 #define BTN_ALM1_PIN 7      // пин кнопки включения первого режима автосвета
 #define BTN_ALM2_PIN 8      // пин кнопки включения второго режима автосвета
@@ -86,6 +86,7 @@ bool checkBtnUp(uint16_t &_data, int min_data, int max_data);
 #define DISPLAY_MODE_SET_MINUTE 2           // режим настройки минут
 #define DISPLAY_MODE_SET_TIMEOUT 3          // режим настройки времени ухода в спящий режим
 #define DISPLAY_MODE_SET_LIGHT_THRESHOLD 10 // режим настройки порога срабатывания датчика света
+#define DISPLAY_MODE_SHOW_TEMP 20           // режим вывода температуры
 
 // вывод на экран данных в режиме настройки времени
 //  hour - значение часов
@@ -117,3 +118,6 @@ void showTimeSetting();
 
 // режим настройки времени перехода в спящий режим
 void showTimeoutSetting();
+
+// температура =======================================
+void showTemp();
