@@ -110,7 +110,10 @@ void checkInputData()
       engine_run_flag = false;
       setLightRelay();
       tasks.startTask(sleep_on_timer);
-      displayMode = DISPLAY_MODE_SHOW_TIME;
+      if (displayMode != DISPLAY_MODE_SET_LIGHT_THRESHOLD)
+      { // если в данный момент настраивается порог срабатывания датчика света, то дать возможность настроить его
+        displayMode = DISPLAY_MODE_SHOW_TIME;
+      }
     }
   }
   else
@@ -270,6 +273,13 @@ void lowBeamOff()
   tasks.stopTask(low_beam_off_timer);
 }
 
+uint16_t getCurLightData()
+{
+  // показания датчика ограничить пределом 100% ))
+  uint16_t result = (light_sensor_threshold > 1000) ? 100 : light_sensor_threshold / 10;
+  return (result);
+}
+
 void showLightThresholdSetting()
 {
   tm.clear();
@@ -280,7 +290,7 @@ void showLightThresholdSetting()
   while (displayMode != DISPLAY_MODE_SHOW_TIME)
   {
     tasks.tick();
-    checkBtnAlm(); // это чтобы не зависали статусы кнопок, режимы здесь все равно переключаться не будут
+    checkBtnAlm(); // режимы в данном случае переключаться не будут, но на кнопки первого и третьего режимов повешены другие обработчики
 
     // обработка кнопки Up
     if (checkBtnUp(data, 10, 90))
@@ -295,13 +305,21 @@ void showLightThresholdSetting()
       displayMode = DISPLAY_MODE_SHOW_TIME;
       break;
     }
-    // обработка клика кнопки третьего режима - при одиночном клике вывести на дисплей текущее значение с датчика света
+    // обработка клика кнопки третьего режима - при одиночном клике установить текущее значение с датчика света
     if (btnAlm3.getLastState() == BTN_ONECLICK)
     {
-      data = light_sensor_threshold / 10;
+      data = getCurLightData();
       flag = true;
     }
-    showSettingData(data, 1);
+    // если нажата кнопка первого режима, выводить на экран текущий уровень освещенности, иначе настраиваемое значение
+    if (btnAlm1.isButtonClosed())
+    {
+      showSettingData(getCurLightData(), 1);
+    }
+    else
+    {
+      showSettingData(data, 1);
+    }
   }
   if (flag)
   {
@@ -329,7 +347,7 @@ void checkBtnAlm()
     break;
   case BTN_LONGCLICK:
     // здесь запуск настройки порога срабатывания датчика света
-    if (digitalRead(IGNITION_PIN))
+    if (digitalRead(IGNITION_PIN) && displayMode == DISPLAY_MODE_SHOW_TIME)
     {
       displayMode = DISPLAY_MODE_SET_LIGHT_THRESHOLD;
     }
@@ -342,7 +360,10 @@ void checkClockBtn()
   switch (btnClockSet.getButtonState())
   {
   case BTN_LONGCLICK:
-    displayMode = DISPLAY_MODE_SET_HOUR;
+    if (displayMode == DISPLAY_MODE_SHOW_TIME)
+    {
+      displayMode = DISPLAY_MODE_SET_HOUR;
+    }
     break;
   }
   switch (btnClockUp.getButtonState())
@@ -543,11 +564,17 @@ void showSettingData(byte data, byte mode)
     _data[0] = 0x38;
     break;
   }
+  if (data >= 100)
+  {
+    _data[1] = tm.encodeDigit(data / 100);
+    data = data % 100;
+  }
   _data[2] = tm.encodeDigit(data / 10);
   _data[3] = tm.encodeDigit(data % 10);
-  // если наступило время блинка и кнопки Up и Set не нажата, то стереть третий и четвертый разряды; при нажатых кнопках во время изменения данных ничего не мигает
-  if (!blink_flag && !btnClockUp.isButtonClosed() && !btnClockSet.isButtonClosed())
+  // если наступило время блинка и кнопки Up, Set и btnAlm1 в режиме настройки порога срабатывания датчика света не нажаты, то стереть второй, третий и четвертый разряды; при нажатых кнопках во время изменения данных ничего не мигает
+  if (!blink_flag && !btnClockUp.isButtonClosed() && !btnClockSet.isButtonClosed() && !(displayMode == DISPLAY_MODE_SET_LIGHT_THRESHOLD && btnAlm1.isButtonClosed()))
   {
+    _data[1] = 0x00;
     _data[2] = 0x00;
     _data[3] = 0x00;
   }
