@@ -309,6 +309,10 @@ void showLightThresholdSetting()
     if (btnAlm3.getLastState() == BTN_ONECLICK)
     {
       data = getCurLightData();
+      if (data > 90)
+      {
+        data = 90;
+      }
       flag = true;
     }
     // если нажата кнопка первого режима, выводить на экран текущий уровень освещенности, иначе настраиваемое значение
