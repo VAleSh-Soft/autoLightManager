@@ -99,6 +99,13 @@ void checkIgnition()
   tasks.stopTask(sleep_on_timer);
   // запуск всего остановленного
   displayMode = DISPLAY_MODE_SHOW_TIME;
+  // иногда при выходе из спящего режима свет включается сразу, выключение
+  // и включение зажигания свет отключает, и дальше все работает как должно;
+  // возможно, это проблема проводки автомобиля; здесь мы задерживаем
+  // считывание состояния входных пинов на 200 мс после включения зажигания,
+  // перезапуская соответствующий таймер
+  engine_run_flag = false;
+  tasks.startTask(data_guard);
 }
 
 void checkInputData()
@@ -110,6 +117,7 @@ void checkInputData()
       engine_run_flag = false;
       setLightRelay();
       tasks.startTask(sleep_on_timer);
+      tasks.stopTask(data_guard);
       if (displayMode != DISPLAY_MODE_SET_LIGHT_THRESHOLD)
       { // если в данный момент настраивается порог срабатывания датчика света, то дать возможность настроить его
         displayMode = DISPLAY_MODE_SHOW_TIME;
