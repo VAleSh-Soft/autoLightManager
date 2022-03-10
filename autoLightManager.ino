@@ -4,7 +4,7 @@
 #include <shButton.h>      // https://github.com/VAleSh-Soft/shButton
 #include <shTaskManager.h> // https://github.com/VAleSh-Soft/shTaskManager
 #include "autoLightManager.h"
-#include "display.h"
+#include "display_TM1637.h"
 #include <avr/sleep.h>
 
 Display disp;
@@ -395,13 +395,13 @@ void lightSensorRead()
   // и здесь же управление яркостью экрана и индикаторов - вне зависимость от режима работы
   if (light_sensor_threshold <= t)
   {
-    FastLED.setBrightness(50);
     disp.setBrightness(2);
+    FastLED.setBrightness(50);
   }
   else if (light_sensor_threshold > t + 50)
   {
-    FastLED.setBrightness(255);
     disp.setBrightness(7);
+    FastLED.setBrightness(255);
   }
 }
 
@@ -887,15 +887,15 @@ void setup()
 
   sleep_on_timer = tasks.addTask(t * 60000ul, powerOffTimer, false);
   data_guard = tasks.addTask(200, checkInputData);
-  leds_guard = tasks.addTask(100, setLeds);
   low_beam_off_timer = tasks.addTask(30000, lowBeamOff, false);
   blink_timer = tasks.addTask(500, blink);
   return_to_default_mode = tasks.addTask(10000, returnToDefMode, false);
   set_time_mode = tasks.addTask(100, showTimeSetting, false);
   set_timeout_mode = tasks.addTask(100, showOtherSetting, false);
   show_temp_mode = tasks.addTask(500, showTemp, false);
-  display_guard = tasks.addTask(100, showDisplay);
   light_sensor_guard = tasks.addTask(100, lightSensorRead);
+  display_guard = tasks.addTask(100, showDisplay);
+  leds_guard = tasks.addTask(100, setLeds);
 }
 
 void loop()
