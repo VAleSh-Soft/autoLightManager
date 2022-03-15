@@ -14,6 +14,8 @@
 #define RELAY_1_PIN A1      // пин реле включения противотуманок
 #define RELAY_2_PIN A2      // пин реле включения ближнего света
 #define LIGHT_SENSOR_PIN A6 // пин датчика света
+#define DISPLAY_CLK_PIN 11  // пин для подключения экрана - CLK
+#define DISPLAY_DAT_PIN 10  // пин для подключения экрана - DAT
 
 // ==== опрос кнопок =================================
 void checkButton();

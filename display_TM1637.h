@@ -2,21 +2,15 @@
 #include <Arduino.h>
 #include <TM1637Display.h> // https://github.com/avishorp/TM1637
 
-// пины для подключения экрана
-#define DISPLAY_CLK_PIN 11
-#define DISPLAY_DAT_PIN 10
-
-TM1637Display tm(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
-
 // ==== класс для вывода данных на экран =============
-class Display
+class DisplayTM1637 : public TM1637Display
 {
 private:
   byte *data = NULL;
   byte _brightness = 1;
 
 public:
-  Display()
+  DisplayTM1637(uint8_t clk_pin, uint8_t dat_pin) : TM1637Display(clk_pin, dat_pin)
   {
     data = new byte[4];
     clear();
@@ -35,7 +29,7 @@ public:
   void sleep()
   {
     clear();
-    tm.setSegments(data);
+    TM1637Display::setSegments(data);
   }
 
   // установка разряда _index буфера экрана
@@ -50,12 +44,7 @@ public:
   // получение значения разряда _index буфера экрана
   byte getDispData(byte _index)
   {
-    byte result = 0;
-    if (_index < 4)
-    {
-      result = data[_index];
-    }
-    return (result);
+    return ((_index < 4) ? data[_index] : 0);
   }
 
   // отрисовка на экране содержимого его буфера
@@ -84,23 +73,23 @@ public:
         _data[i] = data[i];
       }
       br = _brightness;
-      tm.setSegments(data);
+      TM1637Display::setSegments(data);
     }
   }
 
   // отрисовка на экране  времени; если задать какое-то из значений hour или minute отрицательным, эта часть экрана будет очищена; show_colon - отображать или нет двоеточие между часами и минутами
-  void showTimeData(int8_t hour, int8_t minute, bool show_colon)
+  void showTime(int8_t hour, int8_t minute, bool show_colon)
   {
     clear();
     if (hour >= 0)
     {
-      data[0] = encodeDigit(hour / 10);
-      data[1] = encodeDigit(hour % 10);
+      data[0] = TM1637Display::encodeDigit(hour / 10);
+      data[1] = TM1637Display::encodeDigit(hour % 10);
     }
     if (minute >= 0)
     {
-      data[2] = encodeDigit(minute / 10);
-      data[3] = encodeDigit(minute % 10);
+      data[2] = TM1637Display::encodeDigit(minute / 10);
+      data[3] = TM1637Display::encodeDigit(minute % 10);
     }
     if (show_colon)
     {
@@ -112,12 +101,6 @@ public:
   void setBrightness(byte brightness, bool on = true)
   {
     _brightness = brightness;
-    tm.setBrightness(brightness, on);
-  }
-
-  // преобразование цифры в битовую маску для вывода ее на экран
-  byte encodeDigit(byte num)
-  {
-    return (tm.encodeDigit(num));
+    TM1637Display::setBrightness(brightness, on);
   }
 };

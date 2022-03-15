@@ -7,7 +7,7 @@
 #include "display_TM1637.h"
 #include <avr/sleep.h>
 
-Display disp;
+DisplayTM1637 disp(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
 DS3231 clock; // SDA - A4, SCL - A5
 RTClib RTC;
 
@@ -723,7 +723,7 @@ void setLightRelay(byte rel = 0)
 // ===================================================
 void showTime(DateTime dt)
 {
-  disp.showTimeData(dt.hour(), dt.minute(), blink_flag);
+  disp.showTime(dt.hour(), dt.minute(), blink_flag);
 }
 
 void showTimeData(byte hour, byte minute)
@@ -741,7 +741,7 @@ void showTimeData(byte hour, byte minute)
       break;
     }
   }
-  disp.showTimeData(hour, minute, false);
+  disp.showTime(hour, minute, false);
 }
 
 void showSettingData(byte data, byte mode)
