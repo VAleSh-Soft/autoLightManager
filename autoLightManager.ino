@@ -511,34 +511,7 @@ void showTemp()
     tasks.startTask(show_temp_mode);
   }
 
-  disp.clear();
-  disp.setDispData(3, 0x63);
-  int temp = int(clock.getTemperature());
-  // если температура выходит за диапазон, сформировать строку минусов
-  if (temp > 99 || temp < -99)
-  {
-    for (byte i = 0; i < 4; i++)
-    {
-      disp.setDispData(i, 0x40);
-    }
-  }
-  else
-  { // если температура отрицательная, сформировать минус впереди
-    if (temp < 0)
-    {
-      temp = -temp;
-      disp.setDispData(1, 0x40);
-    }
-    if (temp > 9)
-    { // если температура ниже -9, переместить минус на крайнюю левую позицию
-      if (disp.getDispData(1) == 0x40)
-      {
-        disp.setDispData(0, 0x40);
-      }
-      disp.setDispData(1, disp.encodeDigit(temp / 10));
-    }
-    disp.setDispData(2, disp.encodeDigit(temp % 10));
-  }
+    disp.showTemp(int(clock.getTemperature()));
 }
 
 void showDisplay()
