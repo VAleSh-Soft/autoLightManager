@@ -94,6 +94,7 @@ almButton btnClockSet(BTN_CLOCK_SET_PIN);
 almButton btnClockUp(BTN_CLOCK_UP_PIN);
 
 // адреса ячеек памяти для хранения настроек автосвета
+uint8_t EEMEM e_turn_on_delay; // задержка включения света при старте двигателя
 uint8_t EEMEM e_color_1;       // цвет индикации работы ПТФ (индекс в списке доступных цветов)
 uint8_t EEMEM e_color_2;       // цвет индикации работы ближнего света (индекс в списке доступных цветов)
 uint8_t EEMEM e_sleep_on;      // время ухода в сон после отключения зажигания, мин
@@ -117,11 +118,12 @@ void checkSetButton()
     {
     case DISPLAY_MODE_SET_HOUR:
     case DISPLAY_MODE_SET_MINUTE:
+    case DISPLAY_MODE_SET_TIMEOUT:
     case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
     case DISPLAY_MODE_SET_COLOR_1:
       btnClockSet.setBtnFlag(BTN_FLAG_NEXT);
       break;
-    case DISPLAY_MODE_SET_TIMEOUT:
+    case DISPLAY_MODE_SET_TURN_ON_DELAY:
     case DISPLAY_MODE_SET_COLOR_2:
       btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
       break;
@@ -133,12 +135,7 @@ void checkSetButton()
     case DISPLAY_MODE_SHOW_TIME:
       displayMode = DISPLAY_MODE_SET_HOUR;
       break;
-    case DISPLAY_MODE_SET_HOUR:
-    case DISPLAY_MODE_SET_MINUTE:
-    case DISPLAY_MODE_SET_TIMEOUT:
-    case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
-    case DISPLAY_MODE_SET_COLOR_1:
-    case DISPLAY_MODE_SET_COLOR_2:
+    default:
       btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
       break;
     }
@@ -156,12 +153,13 @@ void checkUpButton()
       displayMode = DISPLAY_MODE_SHOW_TEMP;
     }
     break;
-  case DISPLAY_MODE_SET_HOUR:
-  case DISPLAY_MODE_SET_MINUTE:
-  case DISPLAY_MODE_SET_TIMEOUT:
-  case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
-  case DISPLAY_MODE_SET_COLOR_1:
-  case DISPLAY_MODE_SET_COLOR_2:
+  case DISPLAY_MODE_SHOW_TEMP:
+    if (btnClockUp.getButtonState() == BTN_ONECLICK)
+    {
+      returnToDefMode();
+    }
+    break;
+  default:
     switch (btnClockUp.getButtonState())
     {
     case BTN_DOWN:
@@ -169,12 +167,6 @@ void checkUpButton()
     case BTN_LONGCLICK:
       btnClockUp.setBtnFlag(BTN_FLAG_NEXT);
       break;
-    }
-    break;
-  case DISPLAY_MODE_SHOW_TEMP:
-    if (btnClockUp.getButtonState() == BTN_ONECLICK)
-    {
-      returnToDefMode();
     }
     break;
   }
@@ -249,10 +241,21 @@ void checkInputData()
     {
       tasks.stopTask(sleep_on_timer);
     }
-    if (!engine_run_flag && digitalRead(ENGINE_RUN_PIN))
+    if (!engine_run_flag)
     {
-      engine_run_flag = true;
-      runLightMode();
+      static byte n = 0;
+      if (digitalRead(ENGINE_RUN_PIN))
+      { // поднимать флаг запуска двигателя и, соответственно, включать свет только по истечении времени задержки;
+        if (++n >= eeprom_read_byte(&e_turn_on_delay))
+        {
+          engine_run_flag = true;
+          runLightMode();
+        }
+      }
+      else
+      {
+        n = 0;
+      }
     }
   }
 }
@@ -422,17 +425,12 @@ void returnToDefMode()
 {
   switch (displayMode)
   {
-  case DISPLAY_MODE_SET_HOUR:
-  case DISPLAY_MODE_SET_MINUTE:
-  case DISPLAY_MODE_SET_TIMEOUT:
-  case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
-  case DISPLAY_MODE_SET_COLOR_1:
-  case DISPLAY_MODE_SET_COLOR_2:
-    btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
-    break;
   case DISPLAY_MODE_SHOW_TEMP:
     displayMode = DISPLAY_MODE_SHOW_TIME;
     tasks.stopTask(show_temp_mode);
+    break;
+  default:
+    btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
     break;
   }
   tasks.stopTask(return_to_default_mode);
@@ -469,7 +467,7 @@ void showTimeSetting()
     }
     if (btnClockSet.getBtnFlag() == BTN_FLAG_NEXT)
     {
-      checkData(displayMode, DISPLAY_MODE_SET_TIMEOUT);
+      checkData(displayMode, DISPLAY_MODE_SET_TURN_ON_DELAY);
     }
     else
     {
@@ -511,7 +509,7 @@ void showTemp()
     tasks.startTask(show_temp_mode);
   }
 
-    disp.showTemp(int(clock.getTemperature()));
+  disp.showTemp(int(clock.getTemperature()));
 }
 
 void showDisplay()
@@ -539,6 +537,9 @@ void showOtherSetting()
     case DISPLAY_MODE_SET_TIMEOUT:
       _data = eeprom_read_byte(&e_sleep_on);
       break;
+    case DISPLAY_MODE_SET_TURN_ON_DELAY:
+      _data = eeprom_read_byte(&e_turn_on_delay) / 5;
+      break;
     case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
       _data = eeprom_read_word(&e_al_threshold) / 10;
       break;
@@ -560,6 +561,9 @@ void showOtherSetting()
     {
     case DISPLAY_MODE_SET_TIMEOUT:
       checkData(_data, 60, 1);
+      break;
+    case DISPLAY_MODE_SET_TURN_ON_DELAY:
+      checkData(_data, 10, 0);
       break;
     case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
       checkData(_data, 90, 10);
@@ -596,6 +600,9 @@ void showOtherSetting()
         eeprom_update_byte(&e_sleep_on, _data);
         tasks.setTaskInterval(sleep_on_timer, _data * 60000ul, false);
         break;
+      case DISPLAY_MODE_SET_TURN_ON_DELAY:
+        eeprom_update_byte(&e_turn_on_delay, _data * 5);
+        break;
       case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
         eeprom_update_word(&e_al_threshold, _data * 10);
         break;
@@ -627,22 +634,25 @@ void showOtherSetting()
   switch (displayMode)
   {
   case DISPLAY_MODE_SET_TIMEOUT:
-    showSettingData(_data, 0);
+    showSettingData(_data);
+    break;
+  case DISPLAY_MODE_SET_TURN_ON_DELAY:
+    showSettingData(_data);
     break;
   case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
     // если нажата кнопка первого режима, выводить на экран текущий уровень освещенности, иначе настраиваемое значение
     if (btnMode1.isButtonClosed())
     {
-      showSettingData(getCurLightData(), 1);
+      showSettingData(getCurLightData());
     }
     else
     {
-      showSettingData(_data, 1);
+      showSettingData(_data);
     }
     break;
   case DISPLAY_MODE_SET_COLOR_1:
   case DISPLAY_MODE_SET_COLOR_2:
-    showSettingData(_data + 1, displayMode - 3);
+    showSettingData(_data + 1);
     break;
   }
 }
@@ -717,21 +727,24 @@ void showTimeData(byte hour, byte minute)
   disp.showTime(hour, minute, false);
 }
 
-void showSettingData(byte data, byte mode)
+void showSettingData(byte data)
 {
   disp.clear();
-  switch (mode)
+  switch (displayMode)
   {
-  case 0:
+  case DISPLAY_MODE_SET_TIMEOUT:
     disp.setDispData(0, 0x5c);
     break;
-  case 1:
+  case DISPLAY_MODE_SET_TURN_ON_DELAY:
+    disp.setDispData(0, 0x78);
+    break;
+  case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
     disp.setDispData(0, 0x38);
     break;
-  case 2:
+  case DISPLAY_MODE_SET_COLOR_1:
     disp.setDispData(0, 0x54);
     break;
-  case 3:
+  case DISPLAY_MODE_SET_COLOR_2:
     disp.setDispData(0, 0x1c);
     break;
   }
@@ -786,6 +799,7 @@ void setDisplay()
     }
     break;
   case DISPLAY_MODE_SET_TIMEOUT:
+  case DISPLAY_MODE_SET_TURN_ON_DELAY:
   case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
   case DISPLAY_MODE_SET_COLOR_1:
   case DISPLAY_MODE_SET_COLOR_2:
@@ -837,6 +851,10 @@ void setup()
   {
     color_2 = 0;
     eeprom_update_byte(&e_color_1, color_2);
+  }
+  if (eeprom_read_byte(&e_turn_on_delay) > 50)
+  {
+    eeprom_update_byte(&e_turn_on_delay, 5);
   }
 
   // прерывания =================================

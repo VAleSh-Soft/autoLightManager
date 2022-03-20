@@ -65,9 +65,10 @@ void showLightThresholdSetting();
 #define DISPLAY_MODE_SET_HOUR 1            // режим настройки часов
 #define DISPLAY_MODE_SET_MINUTE 2          // режим настройки минут
 #define DISPLAY_MODE_SET_TIMEOUT 3         // режим настройки времени ухода в спящий режим
-#define DISPLAY_MODE_SET_LIGHT_THRESHOLD 4 // режим настройки порога срабатывания датчика света
-#define DISPLAY_MODE_SET_COLOR_1 5         // режим настройки цвета индикации работы ПТФ или ДХО
-#define DISPLAY_MODE_SET_COLOR_2 6         // режим настройки цвета индикации работа ближнего света
+#define DISPLAY_MODE_SET_TURN_ON_DELAY 4   // режим настройки задержки включения света
+#define DISPLAY_MODE_SET_LIGHT_THRESHOLD 5 // режим настройки порога срабатывания датчика света
+#define DISPLAY_MODE_SET_COLOR_1 6         // режим настройки цвета индикации работы ПТФ или ДХО
+#define DISPLAY_MODE_SET_COLOR_2 7         // режим настройки цвета индикации работа ближнего света
 #define DISPLAY_MODE_SHOW_TEMP 20          // режим вывода температуры
 
 // вывод на экран времени
@@ -76,8 +77,7 @@ void showTime(DateTime dt);
 void showTimeData(byte hour, byte minute);
 // вывод на экран данных в других режимах настройки
 //  data - данные для вывода
-//  mode - режим настройки; 0 - настройка времени перехода в спящий режим, 1 - настройка порога срабатывания датчика света, 2 - настройка цвета индикации 1, 3 - настройка цвета индикации 2
-void showSettingData(byte data, byte mode);
+void showSettingData(byte data);
 
 // ==== часы =========================================
 // сохранение времени после настройки
