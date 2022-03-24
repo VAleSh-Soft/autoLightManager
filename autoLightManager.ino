@@ -243,7 +243,6 @@ void checkInputData()
       engine_run_flag = false;
       setLightRelay();
       tasks.startTask(sleep_on_timer);
-      tasks.stopTask(data_guard);
       if (displayMode != DISPLAY_MODE_SET_LIGHT_THRESHOLD)
         returnToDefMode();
     }
@@ -310,8 +309,9 @@ CRGB _getColor(byte mode, byte index)
 
 void setLeds()
 {
-  if (!digitalRead(IGNITION_PIN))
-  { // если отключено зажигание, индикаторы выключить
+  if (!digitalRead(IGNITION_PIN) && !((displayMode >= DISPLAY_MODE_SET_LIGHT_THRESHOLD) &&
+                                      (displayMode <= DISPLAY_MODE_SET_COLOR_2)))
+  { // если отключено зажигание (и не идет настройка уровня датчика света и цветов иникаторов), индикаторы выключить
     for (byte i = 0; i < 3; i++)
     {
       leds[i] = CRGB::Black;
@@ -440,7 +440,6 @@ void returnToDefMode()
   {
   case DISPLAY_MODE_SHOW_TEMP:
     displayMode = DISPLAY_MODE_SHOW_TIME;
-    tasks.stopTask(show_temp_mode);
     break;
   case DISPLAY_MODE_SHOW_TIME:
     break;
@@ -448,6 +447,7 @@ void returnToDefMode()
     btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
     break;
   }
+  tasks.stopTask(show_temp_mode);
   tasks.stopTask(return_to_default_mode);
 }
 
