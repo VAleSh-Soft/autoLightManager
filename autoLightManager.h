@@ -61,15 +61,16 @@ void setLightRelay(byte rel = 0);
 void showLightThresholdSetting();
 
 // ==== экран ========================================
-#define DISPLAY_MODE_SHOW_TIME 0           // основной режим - вывод времени на экран
-#define DISPLAY_MODE_SET_HOUR 1            // режим настройки часов
-#define DISPLAY_MODE_SET_MINUTE 2          // режим настройки минут
-#define DISPLAY_MODE_SET_TIMEOUT 3         // режим настройки времени ухода в спящий режим
-#define DISPLAY_MODE_SET_TURN_ON_DELAY 4   // режим настройки задержки включения света
-#define DISPLAY_MODE_SET_LIGHT_THRESHOLD 5 // режим настройки порога срабатывания датчика света
-#define DISPLAY_MODE_SET_COLOR_1 6         // режим настройки цвета индикации работы ПТФ или ДХО
-#define DISPLAY_MODE_SET_COLOR_2 7         // режим настройки цвета индикации работа ближнего света
-#define DISPLAY_MODE_SHOW_TEMP 20          // режим вывода температуры
+#define DISPLAY_MODE_SHOW_TIME 0            // основной режим - вывод времени на экран
+#define DISPLAY_MODE_SET_HOUR 1             // режим настройки часов
+#define DISPLAY_MODE_SET_MINUTE 2           // режим настройки минут
+#define DISPLAY_MODE_SET_TIMEOUT 3          // режим настройки времени ухода в спящий режим
+#define DISPLAY_MODE_SET_TURN_ON_DELAY 4    // режим настройки задержки включения света
+#define DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN 5 // режим настройки отображения температуры при выходе из спящего режима
+#define DISPLAY_MODE_SET_LIGHT_THRESHOLD 6  // режим настройки порога срабатывания датчика света
+#define DISPLAY_MODE_SET_COLOR_1 7          // режим настройки цвета индикации работы ПТФ или ДХО
+#define DISPLAY_MODE_SET_COLOR_2 8          // режим настройки цвета индикации работа ближнего света
+#define DISPLAY_MODE_SHOW_TEMP 20           // режим вывода температуры
 
 // вывод на экран времени
 void showTime(DateTime dt);

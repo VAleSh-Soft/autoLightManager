@@ -15,17 +15,17 @@ CRGB leds[3]; // массив адресных светодиодов-индик
 
 shTaskManager tasks(11); // создаем список задач
 
-shHandle sleep_on_timer;         // таймер ухода в сон через 10 минут после отключения зажигания
-shHandle data_guard;             // отслеживание изменения уровня на входных пинах
-shHandle blink_timer;            // таймер блинка
-shHandle leds_guard;             // управление светодиодами-индикаторами автосвета
-shHandle low_beam_off_timer;     // таймер отключения ближнего света при превышении порога датчика света
-shHandle return_to_default_mode; // таймер автовозврата в режим показа времени из любого режима настройки
-shHandle set_time_mode;          // режим настройки времени
-shHandle show_temp_mode;         // режим показа температуры
-shHandle display_guard;          // вывод данных на экран
-shHandle light_sensor_guard;     // отслеживание показаний датчика света
-shHandle set_timeout_mode;       // режим настройки времени перехода в спящий режим
+shHandle sleep_on_timer;          // таймер ухода в сон через 10 минут после отключения зажигания
+shHandle blink_timer;             // таймер блинка
+shHandle low_beam_off_timer;      // таймер отключения ближнего света при превышении порога датчика света
+shHandle data_guard;              // отслеживание изменения уровня на входных пинах
+shHandle display_guard;           // вывод данных на экран
+shHandle light_sensor_guard;      // отслеживание показаний датчика света
+shHandle leds_guard;              // управление светодиодами-индикаторами автосвета
+shHandle return_to_default_mode;  // таймер автовозврата в режим показа времени из любого режима настройки
+shHandle show_set_time_mode;      // режим настройки времени
+shHandle show_temp_mode;          // режим показа температуры
+shHandle show_other_setting_mode; // режим настройки времени перехода в спящий режим
 
 bool engine_run_flag = false;              // флаг запуска двигателя
 byte auto_light_mode = AUTOLIGHT_MODE_0;   // текущий режим автосвета
@@ -93,13 +93,14 @@ almButton btnMode3(BTN_MODE3_PIN);
 almButton btnClockSet(BTN_CLOCK_SET_PIN);
 almButton btnClockUp(BTN_CLOCK_UP_PIN);
 
-// адреса ячеек памяти для хранения настроек автосвета
-uint8_t EEMEM e_turn_on_delay; // задержка включения света при старте двигателя
-uint8_t EEMEM e_color_1;       // цвет индикации работы ПТФ (индекс в списке доступных цветов)
-uint8_t EEMEM e_color_2;       // цвет индикации работы ближнего света (индекс в списке доступных цветов)
-uint8_t EEMEM e_sleep_on;      // время ухода в сон после отключения зажигания, мин
-uint16_t EEMEM e_al_threshold; // порог включения ближнего света, 0-1023
-uint8_t EEMEM e_al_mode;       // режим автосвета
+// адреса ячеек памяти для хранения настроек модуля
+uint8_t EEMEM e_show_temp_to_run; // показ температуры при выходе из спящего режима
+uint8_t EEMEM e_turn_on_delay;    // задержка включения света при старте двигателя
+uint8_t EEMEM e_color_1;          // цвет индикации работы ПТФ (индекс в списке доступных цветов)
+uint8_t EEMEM e_color_2;          // цвет индикации работы ближнего света (индекс в списке доступных цветов)
+uint8_t EEMEM e_sleep_on;         // время ухода в сон после отключения зажигания, мин
+uint16_t EEMEM e_al_threshold;    // порог включения ближнего света, 0-1023
+uint8_t EEMEM e_al_mode;          // режим автосвета
 
 // ===================================================
 void checkButton()
@@ -125,6 +126,7 @@ void checkSetButton()
       break;
     case DISPLAY_MODE_SET_TURN_ON_DELAY:
     case DISPLAY_MODE_SET_COLOR_2:
+    case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
       btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
       break;
     }
@@ -134,6 +136,10 @@ void checkSetButton()
     {
     case DISPLAY_MODE_SHOW_TIME:
       displayMode = DISPLAY_MODE_SET_HOUR;
+      break;
+    case DISPLAY_MODE_SHOW_TEMP:
+      displayMode = DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN;
+      tasks.stopTask(show_temp_mode);
       break;
     default:
       btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
@@ -157,6 +163,13 @@ void checkUpButton()
     if (btnClockUp.getButtonState() == BTN_ONECLICK)
     {
       returnToDefMode();
+    }
+    break;
+  case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
+    // при настройке типа "вкл/выкл" реагировать только на короткий клик кнопки
+    if (btnClockUp.getButtonState() == BTN_DOWN)
+    {
+      btnClockUp.setBtnFlag(BTN_FLAG_NEXT);
     }
     break;
   default:
@@ -442,9 +455,9 @@ void showTimeSetting()
   static byte curHour = 0;
   static byte curMinute = 0;
 
-  if (!tasks.getTaskState(set_time_mode))
+  if (!tasks.getTaskState(show_set_time_mode))
   {
-    tasks.startTask(set_time_mode);
+    tasks.startTask(show_set_time_mode);
     tasks.startTask(return_to_default_mode);
     restartBlink();
     time_checked = false;
@@ -476,7 +489,7 @@ void showTimeSetting()
     btnClockSet.setBtnFlag(BTN_FLAG_NONE);
     if (displayMode > DISPLAY_MODE_SET_MINUTE)
     {
-      tasks.stopTask(set_time_mode);
+      tasks.stopTask(show_set_time_mode);
       tasks.stopTask(return_to_default_mode);
       return;
     }
@@ -529,7 +542,7 @@ void showOtherSetting()
   static byte _data;
   static bool flag = false;
 
-  if (!tasks.getTaskState(set_timeout_mode))
+  if (!tasks.getTaskState(show_other_setting_mode))
   {
     restartBlink();
     switch (displayMode)
@@ -539,6 +552,9 @@ void showOtherSetting()
       break;
     case DISPLAY_MODE_SET_TURN_ON_DELAY:
       _data = eeprom_read_byte(&e_turn_on_delay) / 5;
+      break;
+    case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
+      _data = eeprom_read_byte(&e_show_temp_to_run);
       break;
     case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
       _data = eeprom_read_word(&e_al_threshold) / 10;
@@ -550,7 +566,7 @@ void showOtherSetting()
       _data = eeprom_read_byte(&e_color_2);
       break;
     }
-    tasks.startTask(set_timeout_mode);
+    tasks.startTask(show_other_setting_mode);
     tasks.startTask(return_to_default_mode);
   }
 
@@ -564,6 +580,9 @@ void showOtherSetting()
       break;
     case DISPLAY_MODE_SET_TURN_ON_DELAY:
       checkData(_data, 10, 0);
+      break;
+    case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
+      _data = !_data;
       break;
     case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
       checkData(_data, 90, 10);
@@ -603,6 +622,9 @@ void showOtherSetting()
       case DISPLAY_MODE_SET_TURN_ON_DELAY:
         eeprom_update_byte(&e_turn_on_delay, _data * 5);
         break;
+      case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
+        eeprom_update_byte(&e_show_temp_to_run, _data);
+        break;
       case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
         eeprom_update_word(&e_al_threshold, _data * 10);
         break;
@@ -624,7 +646,7 @@ void showOtherSetting()
       displayMode = DISPLAY_MODE_SHOW_TIME;
     }
     btnClockSet.setBtnFlag(BTN_FLAG_NONE);
-    tasks.stopTask(set_timeout_mode);
+    tasks.stopTask(show_other_setting_mode);
     tasks.stopTask(return_to_default_mode);
 
     return;
@@ -634,9 +656,8 @@ void showOtherSetting()
   switch (displayMode)
   {
   case DISPLAY_MODE_SET_TIMEOUT:
-    showSettingData(_data);
-    break;
   case DISPLAY_MODE_SET_TURN_ON_DELAY:
+  case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
     showSettingData(_data);
     break;
   case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
@@ -661,14 +682,21 @@ void showOtherSetting()
 void checkIgnition()
 {
   tasks.stopTask(sleep_on_timer);
-  // запуск всего остановленного
-  tasks.startTask(display_guard);
-  displayMode = DISPLAY_MODE_SHOW_TIME;
-  // иногда при выходе из спящего режима свет включается сразу, выключение
-  // и включение зажигания свет отключает, и дальше все работает как должно;
-  // возможно, это проблема проводки автомобиля; здесь мы задерживаем
-  // считывание состояния входных пинов на 200 мс после включения зажигания,
-  // перезапуская соответствующий таймер
+  // если модуль спал, включить отображение температуры, если задано
+  if (!tasks.getTaskState(display_guard))
+  {
+    displayMode = (eeprom_read_byte(&e_show_temp_to_run)) ? DISPLAY_MODE_SHOW_TEMP : DISPLAY_MODE_SHOW_TIME;
+    tasks.startTask(display_guard);
+  }
+  else
+  {
+    displayMode = DISPLAY_MODE_SHOW_TIME;
+  }
+  // иногда при выходе из спящего режима при нулевой задержке свет включается сразу,
+  // выключение и включение зажигания свет отключает, и дальше все работает как должно;
+  // возможно, это проблема проводки автомобиля или какие-то наведенные импульсы в цепи
+  // проверки запуска двигателя; здесь мы задерживаем считывание состояния входных
+  // пинов на 200 мс после включения зажигания, перезапуская соответствующий таймер
   engine_run_flag = false;
   tasks.startTask(data_guard);
 }
@@ -733,10 +761,10 @@ void showSettingData(byte data)
   switch (displayMode)
   {
   case DISPLAY_MODE_SET_TIMEOUT:
-    disp.setDispData(0, 0x5c);
-    break;
   case DISPLAY_MODE_SET_TURN_ON_DELAY:
-    disp.setDispData(0, 0x78);
+  case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
+    disp.setDispData(0, disp.encodeDigit(displayMode - 2));
+    disp.setDispData(1, 0x5c);
     break;
   case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
     disp.setDispData(0, 0x38);
@@ -751,13 +779,32 @@ void showSettingData(byte data)
   // отрисовка данных только если не наступил блинк или нажата какая-то из кнопок Up, Set или  btnMode1; при нажатых кнопках ничего не мигает
   if (blink_flag || btnClockUp.isButtonClosed() || btnClockSet.isButtonClosed() || (displayMode == DISPLAY_MODE_SET_LIGHT_THRESHOLD && btnMode1.isButtonClosed()))
   {
-    if (data >= 100)
+    switch (displayMode)
     {
-      disp.setDispData(1, disp.encodeDigit(data / 100));
-      data = data % 100;
+    case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
+      switch (data)
+      {
+      case 0:
+        disp.setDispData(3, 0x08);
+        break;
+      default:
+        disp.setDispData(3, 0x5c);
+        break;
+      }
+      break;
+    default:
+      if (data >= 100)
+      {
+        disp.setDispData(1, disp.encodeDigit(data / 100));
+        data = data % 100;
+      }
+      if (data >= 10)
+      {
+        disp.setDispData(2, disp.encodeDigit(data / 10));
+      }
+      disp.setDispData(3, disp.encodeDigit(data % 10));
+      break;
     }
-    disp.setDispData(2, disp.encodeDigit(data / 10));
-    disp.setDispData(3, disp.encodeDigit(data % 10));
   }
 }
 
@@ -793,7 +840,7 @@ void setDisplay()
     break;
   case DISPLAY_MODE_SET_HOUR:
   case DISPLAY_MODE_SET_MINUTE:
-    if (!tasks.getTaskState(set_time_mode))
+    if (!tasks.getTaskState(show_set_time_mode))
     {
       showTimeSetting();
     }
@@ -803,7 +850,8 @@ void setDisplay()
   case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
   case DISPLAY_MODE_SET_COLOR_1:
   case DISPLAY_MODE_SET_COLOR_2:
-    if (!tasks.getTaskState(set_timeout_mode))
+  case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
+    if (!tasks.getTaskState(show_other_setting_mode))
     {
       showOtherSetting();
     }
@@ -881,8 +929,8 @@ void setup()
   low_beam_off_timer = tasks.addTask(30000, lowBeamOff, false);
   blink_timer = tasks.addTask(500, blink);
   return_to_default_mode = tasks.addTask(10000, returnToDefMode, false);
-  set_time_mode = tasks.addTask(100, showTimeSetting, false);
-  set_timeout_mode = tasks.addTask(100, showOtherSetting, false);
+  show_set_time_mode = tasks.addTask(100, showTimeSetting, false);
+  show_other_setting_mode = tasks.addTask(100, showOtherSetting, false);
   show_temp_mode = tasks.addTask(500, showTemp, false);
   light_sensor_guard = tasks.addTask(100, lightSensorRead);
   display_guard = tasks.addTask(100, showDisplay);
