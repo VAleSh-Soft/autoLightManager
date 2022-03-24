@@ -442,6 +442,8 @@ void returnToDefMode()
     displayMode = DISPLAY_MODE_SHOW_TIME;
     tasks.stopTask(show_temp_mode);
     break;
+  case DISPLAY_MODE_SHOW_TIME:
+    break;
   default:
     btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
     break;
