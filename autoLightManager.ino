@@ -48,11 +48,11 @@ private:
 public:
   almButton(byte button_pin) : shButton(button_pin)
   {
-    shButton::setTimeout(1000);
+    shButton::setTimeoutOfLongClick(1000);
     shButton::setLongClickMode(LCM_ONLYONCE);
     shButton::setVirtualClickOn(true);
-    shButton::setDblClickTimeout(100); // т.к. двойной клик нигде не используется, уменьшаем его интервал, чтобы ускорить выдачу события BTN_ONECLICK
-    shButton::setDebounce(60);
+    shButton::setTimeoutOfDblClick(100); // т.к. двойной клик нигде не используется, уменьшаем его интервал, чтобы ускорить выдачу события BTN_ONECLICK
+    shButton::setTimeoutOfDebounce(60);
   }
 
   byte getBtnFlag()
@@ -727,7 +727,7 @@ void runLightMode()
   setLightRelay(x);
 }
 
-void setLightRelay(byte rel = 0)
+void setLightRelay(byte rel)
 {
   digitalWrite(RELAY_1_PIN, (auto_light_mode && (rel == 1) && engine_run_flag));
   digitalWrite(RELAY_2_PIN, (auto_light_mode && (rel == 2) && engine_run_flag));
@@ -819,7 +819,7 @@ void saveTime(byte hour, byte minute)
 }
 
 // ===================================================
-void checkData(byte &_data, byte _max_data, byte _min_data = 0)
+void checkData(byte &_data, byte _max_data, byte _min_data)
 {
   if (++_data > _max_data)
   {
@@ -916,7 +916,7 @@ void setup()
 
   // кнопки =====================================
   btnClockUp.setLongClickMode(LCM_CLICKSERIES);
-  btnClockUp.setLongClickTimeout(100);
+  btnClockUp.setIntervalOfSerial(100);
 
   // задачи =====================================
   byte t = eeprom_read_byte(&e_sleep_on);
