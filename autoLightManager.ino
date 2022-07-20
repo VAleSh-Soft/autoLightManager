@@ -930,7 +930,7 @@ void setup()
   data_guard = tasks.addTask(200, checkInputData);
   low_beam_off_timer = tasks.addTask(30000, lowBeamOff, false);
   blink_timer = tasks.addTask(500, blink);
-  return_to_default_mode = tasks.addTask(10000, returnToDefMode, false);
+  return_to_default_mode = tasks.addTask(6000, returnToDefMode, false);
   show_set_time_mode = tasks.addTask(100, showTimeSetting, false);
   show_other_setting_mode = tasks.addTask(100, showOtherSetting, false);
   show_temp_mode = tasks.addTask(500, showTemp, false);
