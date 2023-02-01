@@ -1,11 +1,13 @@
 #include <Wire.h>
 #include <FastLED.h>       // https://github.com/FastLED/FastLED
 #include <DS3231.h>        // https://github.com/NorthernWidget/DS3231
-#include <shButton.h>      // https://github.com/VAleSh-Soft/shButton
 #include <shTaskManager.h> // https://github.com/VAleSh-Soft/shTaskManager
 #include "autoLightManager.h"
 #include "display_TM1637.h"
 #include <avr/sleep.h>
+
+#define USE_BUTTON_FLAG
+#include <shButton.h>      // https://github.com/VAleSh-Soft/shButton
 
 DisplayTM1637 disp(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
 DS3231 clock; // SDA - A4, SCL - A5
@@ -36,15 +38,13 @@ byte color_1;                              // индекс цвета индик
 byte color_2;                              // индекс цвета индикатора работы ближнего света
 
 // ==== класс кнопок с предварительной настройкой ====
-#define BTN_FLAG_NONE 0 // флаг кнопки - ничего не делать
-#define BTN_FLAG_NEXT 1 // флаг кнопки - изменить значение
-#define BTN_FLAG_EXIT 2 // флаг кнопки - возврат в режим показа текущего времени
+const uint8_t BTN_FLAG_NONE = 0; // флаг кнопки - ничего не делать
+const uint8_t BTN_FLAG_NEXT = 1; // флаг кнопки - изменить значение
+const uint8_t BTN_FLAG_EXIT = 2; // флаг кнопки - возврат в режим показа текущего времени
 
 class almButton : public shButton
 {
 private:
-  byte _flag = BTN_FLAG_NONE;
-
 public:
   almButton(byte button_pin) : shButton(button_pin)
   {
@@ -53,16 +53,6 @@ public:
     shButton::setVirtualClickOn(true);
     shButton::setTimeoutOfDblClick(100); // т.к. двойной клик нигде не используется, уменьшаем его интервал, чтобы ускорить выдачу события BTN_ONECLICK
     shButton::setTimeoutOfDebounce(60);
-  }
-
-  byte getBtnFlag()
-  {
-    return (_flag);
-  }
-
-  void setBtnFlag(byte flag)
-  {
-    _flag = flag;
   }
 
   byte getButtonState()
@@ -122,12 +112,12 @@ void checkSetButton()
     case DISPLAY_MODE_SET_TIMEOUT:
     case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
     case DISPLAY_MODE_SET_COLOR_1:
-      btnClockSet.setBtnFlag(BTN_FLAG_NEXT);
+      btnClockSet.setButtonFlag(BTN_FLAG_NEXT);
       break;
     case DISPLAY_MODE_SET_TURN_ON_DELAY:
     case DISPLAY_MODE_SET_COLOR_2:
     case DISPLAY_MODE_SET_SHOW_TEMP_TO_RUN:
-      btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
+      btnClockSet.setButtonFlag(BTN_FLAG_EXIT);
       break;
     }
     break;
@@ -142,7 +132,7 @@ void checkSetButton()
       tasks.stopTask(show_temp_mode);
       break;
     default:
-      btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
+      btnClockSet.setButtonFlag(BTN_FLAG_EXIT);
       break;
     }
     break;
@@ -169,7 +159,7 @@ void checkUpButton()
     // при настройке типа "вкл/выкл" реагировать только на короткий клик кнопки
     if (btnClockUp.getButtonState() == BTN_DOWN)
     {
-      btnClockUp.setBtnFlag(BTN_FLAG_NEXT);
+      btnClockUp.setButtonFlag(BTN_FLAG_NEXT);
     }
     break;
   default:
@@ -178,7 +168,7 @@ void checkUpButton()
     case BTN_DOWN:
     case BTN_DBLCLICK:
     case BTN_LONGCLICK:
-      btnClockUp.setBtnFlag(BTN_FLAG_NEXT);
+      btnClockUp.setButtonFlag(BTN_FLAG_NEXT);
       break;
     }
     break;
@@ -201,7 +191,7 @@ void checkModeButton()
     switch (displayMode)
     {
     case DISPLAY_MODE_SET_LIGHT_THRESHOLD:
-      btnMode3.setBtnFlag(BTN_FLAG_NEXT);
+      btnMode3.setButtonFlag(BTN_FLAG_NEXT);
       break;
     default:
       setAutoLightMode(AUTOLIGHT_MODE_3);
@@ -444,7 +434,7 @@ void returnToDefMode()
   case DISPLAY_MODE_SHOW_TIME:
     break;
   default:
-    btnClockSet.setBtnFlag(BTN_FLAG_EXIT);
+    btnClockSet.setButtonFlag(BTN_FLAG_EXIT);
     break;
   }
   tasks.stopTask(show_temp_mode);
@@ -473,14 +463,14 @@ void showTimeSetting()
   }
 
   // опрос кнопок =====================
-  if (btnClockSet.getBtnFlag() > BTN_FLAG_NONE)
+  if (btnClockSet.getButtonFlag() > BTN_FLAG_NONE)
   {
     if (time_checked)
     {
       saveTime(curHour, curMinute);
       time_checked = false;
     }
-    if (btnClockSet.getBtnFlag() == BTN_FLAG_NEXT)
+    if (btnClockSet.getButtonFlag() == BTN_FLAG_NEXT)
     {
       checkData(displayMode, DISPLAY_MODE_SET_TURN_ON_DELAY);
     }
@@ -488,7 +478,7 @@ void showTimeSetting()
     {
       displayMode = DISPLAY_MODE_SHOW_TIME;
     }
-    btnClockSet.setBtnFlag(BTN_FLAG_NONE);
+    btnClockSet.setButtonFlag(BTN_FLAG_NONE);
     if (displayMode > DISPLAY_MODE_SET_MINUTE)
     {
       tasks.stopTask(show_set_time_mode);
@@ -497,7 +487,7 @@ void showTimeSetting()
     }
   }
 
-  if (btnClockUp.getBtnFlag() == BTN_FLAG_NEXT)
+  if (btnClockUp.getButtonFlag() == BTN_FLAG_NEXT)
   {
     switch (displayMode)
     {
@@ -509,7 +499,7 @@ void showTimeSetting()
       break;
     }
     time_checked = true;
-    btnClockUp.setBtnFlag(BTN_FLAG_NONE);
+    btnClockUp.setButtonFlag(BTN_FLAG_NONE);
   }
 
   // вывод данных на экран ============
@@ -573,7 +563,7 @@ void showOtherSetting()
   }
 
   // опрос кнопок
-  if (btnClockUp.getBtnFlag() == BTN_FLAG_NEXT)
+  if (btnClockUp.getButtonFlag() == BTN_FLAG_NEXT)
   {
     switch (displayMode)
     {
@@ -597,10 +587,10 @@ void showOtherSetting()
     }
 
     flag = true;
-    btnClockUp.setBtnFlag(BTN_FLAG_NONE);
+    btnClockUp.setButtonFlag(BTN_FLAG_NONE);
   }
 
-  if ((btnMode3.getBtnFlag() == BTN_FLAG_NEXT) && (displayMode == DISPLAY_MODE_SET_LIGHT_THRESHOLD))
+  if ((btnMode3.getButtonFlag() == BTN_FLAG_NEXT) && (displayMode == DISPLAY_MODE_SET_LIGHT_THRESHOLD))
   { // клик на кнопку третьего режима сразу вводит текущее значение с датчика света
     _data = getCurLightData();
     if (_data > 90)
@@ -608,10 +598,10 @@ void showOtherSetting()
       _data = 90;
     }
     flag = true;
-    btnMode3.setBtnFlag(BTN_FLAG_NONE);
+    btnMode3.setButtonFlag(BTN_FLAG_NONE);
   }
 
-  if (btnClockSet.getBtnFlag() > BTN_FLAG_NONE)
+  if (btnClockSet.getButtonFlag() > BTN_FLAG_NONE)
   {
     if (flag)
     {
@@ -639,7 +629,7 @@ void showOtherSetting()
       }
       flag = false;
     }
-    if (btnClockSet.getBtnFlag() == BTN_FLAG_NEXT)
+    if (btnClockSet.getButtonFlag() == BTN_FLAG_NEXT)
     {
       checkData(displayMode, DISPLAY_MODE_SET_COLOR_2);
     }
@@ -647,7 +637,7 @@ void showOtherSetting()
     {
       displayMode = DISPLAY_MODE_SHOW_TIME;
     }
-    btnClockSet.setBtnFlag(BTN_FLAG_NONE);
+    btnClockSet.setButtonFlag(BTN_FLAG_NONE);
     tasks.stopTask(show_other_setting_mode);
     tasks.stopTask(return_to_default_mode);
 
