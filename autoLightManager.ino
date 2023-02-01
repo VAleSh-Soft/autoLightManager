@@ -7,7 +7,7 @@
 #include <avr/sleep.h>
 
 #define USE_BUTTON_FLAG
-#include <shButton.h>      // https://github.com/VAleSh-Soft/shButton
+#include <shButton.h> // https://github.com/VAleSh-Soft/shButton
 
 DisplayTM1637 disp(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
 DS3231 clock; // SDA - A4, SCL - A5
@@ -470,7 +470,7 @@ void showTimeSetting()
       saveTime(curHour, curMinute);
       time_checked = false;
     }
-    if (btnClockSet.getButtonFlag() == BTN_FLAG_NEXT)
+    if (btnClockSet.getButtonFlag(true) == BTN_FLAG_NEXT)
     {
       checkData(displayMode, DISPLAY_MODE_SET_TURN_ON_DELAY);
     }
@@ -478,7 +478,6 @@ void showTimeSetting()
     {
       displayMode = DISPLAY_MODE_SHOW_TIME;
     }
-    btnClockSet.setButtonFlag(BTN_FLAG_NONE);
     if (displayMode > DISPLAY_MODE_SET_MINUTE)
     {
       tasks.stopTask(show_set_time_mode);
@@ -487,7 +486,7 @@ void showTimeSetting()
     }
   }
 
-  if (btnClockUp.getButtonFlag() == BTN_FLAG_NEXT)
+  if (btnClockUp.getButtonFlag(true) == BTN_FLAG_NEXT)
   {
     switch (displayMode)
     {
@@ -499,7 +498,6 @@ void showTimeSetting()
       break;
     }
     time_checked = true;
-    btnClockUp.setButtonFlag(BTN_FLAG_NONE);
   }
 
   // вывод данных на экран ============
@@ -563,7 +561,7 @@ void showOtherSetting()
   }
 
   // опрос кнопок
-  if (btnClockUp.getButtonFlag() == BTN_FLAG_NEXT)
+  if (btnClockUp.getButtonFlag(true) == BTN_FLAG_NEXT)
   {
     switch (displayMode)
     {
@@ -587,10 +585,10 @@ void showOtherSetting()
     }
 
     flag = true;
-    btnClockUp.setButtonFlag(BTN_FLAG_NONE);
   }
 
-  if ((btnMode3.getButtonFlag() == BTN_FLAG_NEXT) && (displayMode == DISPLAY_MODE_SET_LIGHT_THRESHOLD))
+  if ((btnMode3.getButtonFlag(true) == BTN_FLAG_NEXT) &&
+      (displayMode == DISPLAY_MODE_SET_LIGHT_THRESHOLD))
   { // клик на кнопку третьего режима сразу вводит текущее значение с датчика света
     _data = getCurLightData();
     if (_data > 90)
@@ -598,7 +596,6 @@ void showOtherSetting()
       _data = 90;
     }
     flag = true;
-    btnMode3.setButtonFlag(BTN_FLAG_NONE);
   }
 
   if (btnClockSet.getButtonFlag() > BTN_FLAG_NONE)
@@ -629,7 +626,7 @@ void showOtherSetting()
       }
       flag = false;
     }
-    if (btnClockSet.getButtonFlag() == BTN_FLAG_NEXT)
+    if (btnClockSet.getButtonFlag(true) == BTN_FLAG_NEXT)
     {
       checkData(displayMode, DISPLAY_MODE_SET_COLOR_2);
     }
@@ -637,7 +634,6 @@ void showOtherSetting()
     {
       displayMode = DISPLAY_MODE_SHOW_TIME;
     }
-    btnClockSet.setButtonFlag(BTN_FLAG_NONE);
     tasks.stopTask(show_other_setting_mode);
     tasks.stopTask(return_to_default_mode);
 
